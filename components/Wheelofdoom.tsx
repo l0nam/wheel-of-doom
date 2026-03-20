@@ -13,11 +13,11 @@ interface Dot {
 }
 
 // ─── physics constants ────────────────────────────────────────────────────────
-const IDLE_AMPLITUDE  = 4;     // deg, gentle idle sway
-const MAX_TILT        = 22;    // deg max tilt at result
-const WEIGH_SPEED     = 0.012; // how fast the needle oscillates while weighing
-const SUSPENSE_DAMP   = 0.94;  // damping during suspense slow-down
-const SETTLE_SPEED    = 0.04;  // speed of final snap to result angle
+const IDLE_AMPLITUDE  = 2;
+const MAX_TILT        = 22;
+const WEIGH_SPEED     = 0.002;
+const SUSPENSE_DAMP   = 0.94;
+const SETTLE_SPEED    = 0.006;
 
 // ─── canvas helpers ───────────────────────────────────────────────────────────
 function drawScales(
