@@ -2,495 +2,509 @@
 
 import { useRef, useState, useEffect, useCallback } from "react";
 
-// 12 sectors: alternating YES/NO with 6 each
+// 12 sectors alternating ДА/НЕТ
 const SECTORS = [
-  { label: "ДА", isYes: true },
+  { label: "ДА",  isYes: true  },
   { label: "НЕТ", isYes: false },
-  { label: "ДА", isYes: true },
+  { label: "ДА",  isYes: true  },
   { label: "НЕТ", isYes: false },
-  { label: "ДА", isYes: true },
+  { label: "ДА",  isYes: true  },
   { label: "НЕТ", isYes: false },
-  { label: "ДА", isYes: true },
+  { label: "ДА",  isYes: true  },
   { label: "НЕТ", isYes: false },
-  { label: "ДА", isYes: true },
+  { label: "ДА",  isYes: true  },
   { label: "НЕТ", isYes: false },
-  { label: "ДА", isYes: true },
+  { label: "ДА",  isYes: true  },
   { label: "НЕТ", isYes: false },
 ];
 
 const NUM = SECTORS.length;
-const SECTOR_ANGLE = 360 / NUM;
+const SECTOR_DEG = 360 / NUM;
 
-type Phase = "idle" | "spinning" | "slowdown" | "result";
+type Phase = "idle" | "buildup" | "spinning" | "slowdown" | "suspense" | "result";
 
 interface Particle {
-  id: number;
-  x: number;
-  y: number;
-  color: string;
-  size: number;
-  tx: number;
-  ty: number;
-  duration: number;
+  id: number; x: number; y: number;
+  color: string; size: number;
+  tx: number; ty: number; duration: number;
 }
-
 interface Star {
-  id: number;
-  x: number;
-  y: number;
-  size: number;
-  duration: number;
-  minOpacity: number;
+  id: number; x: number; y: number;
+  size: number; duration: number; minOpacity: number;
 }
 
-function drawWheel(canvas: HTMLCanvasElement, rotation: number, phase: Phase, spinSpeed: number) {
+function drawWheel(
+  canvas: HTMLCanvasElement,
+  rotation: number,
+  speed: number,
+  suspensePulse: number
+) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-  const size = canvas.width;
-  const cx = size / 2;
-  const cy = size / 2;
-  const r = size / 2 - 4;
+  const S = canvas.width;
+  const cx = S / 2, cy = S / 2;
+  const R = S / 2 - 6;
+  const intensity = Math.min(speed / 22, 1);
 
-  ctx.clearRect(0, 0, size, size);
+  ctx.clearRect(0, 0, S, S);
 
-  const intensity = Math.min(spinSpeed / 25, 1);
+  // outer halo
+  const haloColor = intensity > 0.5
+    ? `rgba(255,60,0,${0.15 + intensity * 0.4 + suspensePulse * 0.3})`
+    : `rgba(201,168,76,${0.2 + intensity * 0.3 + suspensePulse * 0.2})`;
+  const halo = ctx.createRadialGradient(cx, cy, R * 0.7, cx, cy, R + 35);
+  halo.addColorStop(0, "transparent");
+  halo.addColorStop(0.6, haloColor);
+  halo.addColorStop(1, "transparent");
+  ctx.beginPath(); ctx.arc(cx, cy, R + 35, 0, Math.PI * 2);
+  ctx.fillStyle = halo; ctx.fill();
 
-  // Outer glow ring
-  const outerGlow = ctx.createRadialGradient(cx, cy, r - 10, cx, cy, r + 20);
-  outerGlow.addColorStop(0, `rgba(201,168,76,${0.3 + intensity * 0.5})`);
-  outerGlow.addColorStop(0.5, `rgba(255,69,0,${intensity * 0.4})`);
-  outerGlow.addColorStop(1, "transparent");
-  ctx.beginPath();
-  ctx.arc(cx, cy, r + 20, 0, Math.PI * 2);
-  ctx.fillStyle = outerGlow;
-  ctx.fill();
-
-  // Draw sectors
+  // sectors
   for (let i = 0; i < NUM; i++) {
-    const startAngle = ((rotation + i * SECTOR_ANGLE - 90) * Math.PI) / 180;
-    const endAngle = ((rotation + (i + 1) * SECTOR_ANGLE - 90) * Math.PI) / 180;
-    const sector = SECTORS[i];
+    const a0 = ((rotation + i * SECTOR_DEG - 90) * Math.PI) / 180;
+    const a1 = ((rotation + (i + 1) * SECTOR_DEG - 90) * Math.PI) / 180;
+    const sec = SECTORS[i];
 
-    // Sector fill
-    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-    if (sector.isYes) {
-      grad.addColorStop(0, "#2a1a00");
-      grad.addColorStop(0.5, "#4a2800");
-      grad.addColorStop(1, "#6b3800");
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+    if (sec.isYes) {
+      g.addColorStop(0, "#2d1800"); g.addColorStop(0.55, "#4f2d00"); g.addColorStop(1, "#7a4800");
     } else {
-      grad.addColorStop(0, "#1a0000");
-      grad.addColorStop(0.5, "#3a0000");
-      grad.addColorStop(1, "#5a0000");
+      g.addColorStop(0, "#1e0000"); g.addColorStop(0.55, "#420000"); g.addColorStop(1, "#6e0000");
+    }
+    ctx.beginPath(); ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, R, a0, a1); ctx.closePath();
+    ctx.fillStyle = g; ctx.fill();
+
+    if (intensity > 0.2) {
+      ctx.beginPath(); ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, R, a0, a1); ctx.closePath();
+      ctx.strokeStyle = sec.isYes
+        ? `rgba(255,200,0,${intensity * 0.3})`
+        : `rgba(255,30,30,${intensity * 0.3})`;
+      ctx.lineWidth = 14; ctx.stroke();
     }
 
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, r, startAngle, endAngle);
-    ctx.closePath();
-    ctx.fillStyle = grad;
-    ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, R, a0, a1); ctx.closePath();
+    ctx.strokeStyle = `rgba(201,168,76,${0.5 + intensity * 0.4 + suspensePulse * 0.3})`;
+    ctx.lineWidth = 1.5; ctx.stroke();
 
-    // Sector border
-    ctx.strokeStyle = `rgba(201,168,76,${0.6 + intensity * 0.4})`;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // Inner glow on sector edge (spinning effect)
-    if (intensity > 0.3) {
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.arc(cx, cy, r, startAngle, endAngle);
-      ctx.closePath();
-      ctx.strokeStyle = sector.isYes
-        ? `rgba(255,215,0,${intensity * 0.3})`
-        : `rgba(255,0,0,${intensity * 0.3})`;
-      ctx.lineWidth = 8;
-      ctx.stroke();
-    }
-
-    // Label
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.rotate(startAngle + (SECTOR_ANGLE * Math.PI) / 180 / 2);
-    const labelR = r * 0.68;
-
-    // Text glow
-    ctx.shadowColor = sector.isYes ? "#ffd700" : "#cc0000";
-    ctx.shadowBlur = 8 + intensity * 12;
-
-    ctx.font = `900 ${Math.floor(size * 0.065)}px 'Cinzel Decorative', serif`;
-    ctx.fillStyle = sector.isYes ? "#ffd700" : "#ff4444";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(sector.label, labelR, 0);
+    ctx.rotate(a0 + (SECTOR_DEG / 2 * Math.PI) / 180);
+    ctx.shadowColor = sec.isYes ? "#ffd700" : "#cc0000";
+    ctx.shadowBlur = 6 + intensity * 14 + suspensePulse * 22;
+    ctx.font = `900 ${Math.floor(S * 0.062)}px 'Cinzel Decorative', serif`;
+    ctx.fillStyle = sec.isYes ? "#ffd700" : "#ff4040";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(sec.label, R * 0.67, 0);
     ctx.restore();
   }
 
-  // Center hub
-  const hubGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 0.12);
-  hubGrad.addColorStop(0, "#fff8e0");
-  hubGrad.addColorStop(0.3, "#ffd700");
-  hubGrad.addColorStop(0.7, "#c9a84c");
-  hubGrad.addColorStop(1, "#8b6914");
-  ctx.beginPath();
-  ctx.arc(cx, cy, r * 0.12, 0, Math.PI * 2);
-  ctx.fillStyle = hubGrad;
-  ctx.shadowColor = "rgba(255,215,0,0.9)";
-  ctx.shadowBlur = 20 + intensity * 30;
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.arc(cx, cy, r * 0.12, 0, Math.PI * 2);
-  ctx.strokeStyle = "#ffd700";
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // Outer decorative ring
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.strokeStyle = `rgba(201,168,76,${0.7 + intensity * 0.3})`;
-  ctx.lineWidth = 3;
-  ctx.shadowColor = `rgba(255,215,0,${intensity})`;
-  ctx.shadowBlur = intensity * 20;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // Decorative dots on rim
+  // rim dots
   for (let i = 0; i < NUM * 2; i++) {
-    const angle = ((rotation * 0.5 + i * (360 / (NUM * 2)) - 90) * Math.PI) / 180;
-    const dx = cx + (r - 8) * Math.cos(angle);
-    const dy = cy + (r - 8) * Math.sin(angle);
-    ctx.beginPath();
-    ctx.arc(dx, dy, 3, 0, Math.PI * 2);
-    ctx.fillStyle = i % 2 === 0 ? "#ffd700" : "#c9a84c";
+    const a = ((rotation + i * (360 / (NUM * 2)) - 90) * Math.PI) / 180;
+    const dx = cx + (R - 9) * Math.cos(a);
+    const dy = cy + (R - 9) * Math.sin(a);
+    ctx.beginPath(); ctx.arc(dx, dy, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = i % 2 === 0 ? "#ffd700" : "#a07820";
     ctx.shadowColor = "#ffd700";
-    ctx.shadowBlur = 4 + intensity * 8;
+    ctx.shadowBlur = 4 + intensity * 10 + suspensePulse * 16;
     ctx.fill();
   }
+  ctx.shadowBlur = 0;
+
+  // outer ring
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(201,168,76,${0.7 + intensity * 0.3 + suspensePulse * 0.3})`;
+  ctx.lineWidth = 3;
+  ctx.shadowColor = `rgba(255,215,0,${intensity + suspensePulse * 0.8})`;
+  ctx.shadowBlur = 10 + intensity * 25 + suspensePulse * 40;
+  ctx.stroke(); ctx.shadowBlur = 0;
+
+  // center hub
+  const hg = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.13);
+  hg.addColorStop(0, "#fffbe0"); hg.addColorStop(0.4, "#ffd700");
+  hg.addColorStop(0.8, "#b8860b"); hg.addColorStop(1, "#7a5c00");
+  ctx.beginPath(); ctx.arc(cx, cy, R * 0.13, 0, Math.PI * 2);
+  ctx.fillStyle = hg;
+  ctx.shadowColor = "rgba(255,220,0,0.95)";
+  ctx.shadowBlur = 18 + intensity * 28 + suspensePulse * 32;
+  ctx.fill();
+  ctx.strokeStyle = "#ffd700"; ctx.lineWidth = 2.5; ctx.stroke();
   ctx.shadowBlur = 0;
 }
 
 export default function WheelOfDoom() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animFrameRef = useRef<number>(0);
-  const rotationRef = useRef<number>(0);
-  const speedRef = useRef<number>(0);
-  const phaseRef = useRef<Phase>("idle");
-  const targetRotationRef = useRef<number>(0);
+  const canvasRef        = useRef<HTMLCanvasElement>(null);
+  const rafRef           = useRef<number>(0);
+  const rotRef           = useRef<number>(0);
+  const speedRef         = useRef<number>(0);
+  const phaseRef         = useRef<Phase>("idle");
+  const targetRotRef     = useRef<number>(0);
+  const trueResultRef    = useRef<boolean>(false);
+  const suspensePulseRef = useRef<number>(0);
+  const suspenseDirRef   = useRef<number>(1);
+  const msgIntervalRef   = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [result, setResult] = useState<boolean | null>(null);
-  const [particles, setParticles] = useState<Particle[]>([]);
-  const [stars, setStars] = useState<Star[]>([]);
-  const [shaking, setShaking] = useState(false);
-  const [lightning, setLightning] = useState(false);
-  const [showResult, setShowResult] = useState(false);
-  const [canvasSize, setCanvasSize] = useState(480);
+  const [phase, setPhase]               = useState<Phase>("idle");
+  const [result, setResult]             = useState<boolean | null>(null);
+  const [particles, setParticles]       = useState<Particle[]>([]);
+  const [stars, setStars]               = useState<Star[]>([]);
+  const [shaking, setShaking]           = useState(false);
+  const [lightningOn, setLightning]     = useState(false);
+  const [showResult, setShowResult]     = useState(false);
+  const [canvasSize, setCanvasSize]     = useState(460);
+  const [tensionLevel, setTensionLevel] = useState(0);
+  const [suspenseMsg, setSuspenseMsg]   = useState("");
 
-  // Generate stars
+  const MSGS = [
+    "СУДЬБА КОЛЕБЛЕТСЯ...",
+    "ЕЩЁ НЕ ВРЕМЯ ЗНАТЬ...",
+    "ВСЕЛЕННАЯ ДУМАЕТ...",
+    "НИТИ РОКА НАТЯНУТЫ...",
+    "ПОЧТИ... ПОЧТИ...",
+    "БОГИ МОЛЧАТ...",
+    "МГНОВЕНИЕ РЕШАЕТ ВСЁ...",
+  ];
+
+  // init stars + resize
   useEffect(() => {
-    const s: Star[] = Array.from({ length: 120 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: Math.random() * 2.5 + 0.5,
+    setStars(Array.from({ length: 160 }, (_, i) => ({
+      id: i, x: Math.random() * 100, y: Math.random() * 100,
+      size: Math.random() * 2.5 + 0.4,
       duration: Math.random() * 4 + 2,
-      minOpacity: Math.random() * 0.3 + 0.1,
-    }));
-    setStars(s);
-
-    const updateSize = () => {
+      minOpacity: Math.random() * 0.25 + 0.08,
+    })));
+    const resize = () => {
       const vmin = Math.min(window.innerWidth, window.innerHeight);
-      setCanvasSize(Math.min(Math.floor(vmin * 0.55), 500));
+      setCanvasSize(Math.min(Math.floor(vmin * 0.50), 470));
     };
-    updateSize();
-    window.addEventListener("resize", updateSize);
-    return () => window.removeEventListener("resize", updateSize);
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
   }, []);
 
-  // Draw loop
+  // idle draw loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
-    const loop = () => {
-      const p = phaseRef.current;
-      const speed = speedRef.current;
-      rotationRef.current += speed;
-
-      if (p === "spinning") {
-        // accelerate to max speed
-        speedRef.current = Math.min(speed + 0.8, 28);
-      } else if (p === "slowdown") {
-        // dramatic slowdown
-        const diff = targetRotationRef.current - rotationRef.current;
-        if (diff > 0.3) {
-          // ease out with tension
-          const factor = Math.max(0.97, 0.995 - Math.pow(1 - diff / 1440, 3) * 0.03);
-          speedRef.current = speed * factor;
-          if (speedRef.current < 0.05) speedRef.current = 0;
-        } else {
-          speedRef.current = 0;
-          rotationRef.current = targetRotationRef.current;
-          phaseRef.current = "result";
-        }
+    let id: number;
+    const tick = () => {
+      if (phaseRef.current === "idle" || phaseRef.current === "result") {
+        drawWheel(canvas, rotRef.current % 360, 0, 0);
       }
-
-      drawWheel(canvas, rotationRef.current % 360, phaseRef.current, speedRef.current);
-
-      if (phaseRef.current !== "result") {
-        animFrameRef.current = requestAnimationFrame(loop);
-      } else {
-        // Trigger result sequence
-        handleResultReveal();
-      }
+      id = requestAnimationFrame(tick);
     };
-
-    animFrameRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animFrameRef.current);
+    id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
   }, [canvasSize]);
 
-  const handleResultReveal = useCallback(() => {
-    // Figure out which sector the pointer (top) lands on
-    const normalizedAngle = ((rotationRef.current % 360) + 360) % 360;
-    const pointerAngle = (360 - normalizedAngle + 90) % 360;
-    const sectorIndex = Math.floor(pointerAngle / SECTOR_ANGLE) % NUM;
-    const isYes = SECTORS[sectorIndex].isYes;
-
-    setResult(isYes);
-    setPhase("result");
+  const triggerReveal = useCallback((isYes: boolean) => {
     phaseRef.current = "result";
+    setPhase("result");
+    setResult(isYes);
+    setSuspenseMsg("");
+    setTensionLevel(0);
 
-    // Screen flash
-    setLightning(true);
-    setTimeout(() => setLightning(false), 200);
-
-    // Screen shake
-    setShaking(true);
-    setTimeout(() => setShaking(false), 700);
-
-    // Particles
-    spawnParticles(isYes);
-
-    // Show result text
-    setTimeout(() => setShowResult(true), 300);
-  }, []);
-
-  const spawnParticles = (isYes: boolean) => {
-    const colors = isYes
-      ? ["#ffd700", "#ffb300", "#ff8c00", "#fffacd", "#ffa500"]
-      : ["#cc0000", "#ff0000", "#8b0000", "#ff4444", "#660000"];
-
-    const cx = window.innerWidth / 2;
-    const cy = window.innerHeight / 2;
-
-    const newParticles: Particle[] = Array.from({ length: 80 }, (_, i) => {
-      const angle = (Math.random() * 360 * Math.PI) / 180;
-      const dist = 200 + Math.random() * 400;
-      return {
-        id: Date.now() + i,
-        x: cx,
-        y: cy,
-        color: colors[Math.floor(Math.random() * colors.length)],
-        size: Math.random() * 8 + 3,
-        tx: Math.cos(angle) * dist,
-        ty: Math.sin(angle) * dist,
-        duration: Math.random() * 1.5 + 0.8,
-      };
+    // triple flash
+    [0, 180, 360].forEach((delay) => {
+      setTimeout(() => {
+        setLightning(true);
+        setTimeout(() => setLightning(false), 90);
+      }, delay);
     });
 
-    setParticles(newParticles);
-    setTimeout(() => setParticles([]), 3000);
+    setShaking(true);
+    setTimeout(() => setShaking(false), 900);
+
+    spawnParticles(isYes, 140);
+    setTimeout(() => setShowResult(true), 380);
+  }, []);
+
+  const spawnParticles = (isYes: boolean, count: number) => {
+    const colors = isYes
+      ? ["#ffd700", "#ffb300", "#ff8c00", "#fffacd", "#ffa500", "#fff8dc"]
+      : ["#cc0000", "#ff1a1a", "#8b0000", "#ff4444", "#5c0000", "#ff6666"];
+    const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+    setParticles(Array.from({ length: count }, (_, i) => {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 150 + Math.random() * 520;
+      return {
+        id: Date.now() + i, x: cx, y: cy,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size: Math.random() * 11 + 3,
+        tx: Math.cos(angle) * dist, ty: Math.sin(angle) * dist,
+        duration: Math.random() * 1.8 + 0.7,
+      };
+    }));
+    setTimeout(() => setParticles([]), 4500);
   };
 
-  const spin = () => {
-    if (phase === "spinning" || phase === "slowdown") return;
+  const spin = useCallback(() => {
+    if (phaseRef.current !== "idle" && phaseRef.current !== "result") return;
 
-    // Reset
+    // clear old
+    cancelAnimationFrame(rafRef.current);
+    if (msgIntervalRef.current) clearInterval(msgIntervalRef.current);
     setShowResult(false);
     setResult(null);
     setParticles([]);
-    phaseRef.current = "spinning";
-    setPhase("spinning");
-    speedRef.current = 2;
+    setTensionLevel(0);
+    setSuspenseMsg("");
 
-    // Decide final result and target rotation
-    const willBeYes = Math.random() > 0.5;
-    const targetSector = willBeYes
-      ? SECTORS.findIndex((s) => s.isYes)
-      : SECTORS.findIndex((s) => !s.isYes);
+    // decide true result
+    const willBeYes = Math.random() < 0.5;
+    trueResultRef.current = willBeYes;
 
-    // Spin 5–9 full rotations then land on target sector
-    const extraSpins = (5 + Math.floor(Math.random() * 4)) * 360;
-    const sectorCenter = targetSector * SECTOR_ANGLE + SECTOR_ANGLE / 2;
-    const target = rotationRef.current + extraSpins + (360 - ((rotationRef.current + sectorCenter) % 360));
-    targetRotationRef.current = target;
+    // Wheel lands on OPPOSITE sector so displayed result ≠ wheel position
+    const oppIdx = SECTORS.findIndex((s) => s.isYes === !willBeYes);
+    const sectorCenter = oppIdx * SECTOR_DEG + SECTOR_DEG / 2;
+    // We need: (360 - rotFinal % 360) % 360 = sectorCenter
+    // → rotFinal % 360 = (360 - sectorCenter + 360) % 360
+    const wantedMod = (360 - sectorCenter + 360) % 360;
+    const currentMod = ((rotRef.current % 360) + 360) % 360;
+    const diff = (wantedMod - currentMod + 360) % 360;
+    const fullSpins = (6 + Math.floor(Math.random() * 5)) * 360;
+    targetRotRef.current = rotRef.current + fullSpins + diff;
 
-    // After 3–5 seconds start slowdown
-    const spinDuration = 3000 + Math.random() * 2000;
-    setTimeout(() => {
-      phaseRef.current = "slowdown";
-      setPhase("slowdown");
-    }, spinDuration);
+    phaseRef.current = "buildup";
+    setPhase("buildup");
+    speedRef.current = 1;
+    suspensePulseRef.current = 0;
+    suspenseDirRef.current = 1;
 
-    // Restart animation loop
-    cancelAnimationFrame(animFrameRef.current);
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const spinMs = 3200 + Math.random() * 2800;
+
+    setTimeout(() => { if (phaseRef.current === "buildup") { phaseRef.current = "spinning"; setPhase("spinning"); } }, 500);
+    setTimeout(() => { if (phaseRef.current === "spinning") { phaseRef.current = "slowdown"; setPhase("slowdown"); } }, 500 + spinMs);
+    setTimeout(() => setTensionLevel(1), 500 + spinMs + 600);
+    setTimeout(() => setTensionLevel(2), 500 + spinMs + 1600);
+    setTimeout(() => setTensionLevel(3), 500 + spinMs + 2800);
+
+    let msgIdx = 0;
+    msgIntervalRef.current = setInterval(() => {
+      const p = phaseRef.current;
+      if (p === "slowdown" || p === "suspense") {
+        setSuspenseMsg(MSGS[msgIdx % MSGS.length]);
+        msgIdx++;
+      } else if (p === "result") {
+        if (msgIntervalRef.current) clearInterval(msgIntervalRef.current);
+      }
+    }, 1000);
 
     const loop = () => {
       const p = phaseRef.current;
-      rotationRef.current += speedRef.current;
+      if (p === "result") return;
 
-      if (p === "spinning") {
-        speedRef.current = Math.min(speedRef.current + 0.8, 28);
-      } else if (p === "slowdown") {
-        const diff = targetRotationRef.current - rotationRef.current;
-        if (diff > 0.5 && speedRef.current > 0.05) {
-          const t = Math.max(0, Math.min(1, 1 - diff / 1440));
-          speedRef.current = speedRef.current * (0.99 - t * 0.02);
+      if (p === "buildup") {
+        speedRef.current = Math.min(speedRef.current + 0.35, 5);
+      } else if (p === "spinning") {
+        speedRef.current = Math.min(speedRef.current + 0.65, 24);
+      } else if (p === "slowdown" || p === "suspense") {
+        const remaining = targetRotRef.current - rotRef.current;
+        if (remaining > 0.3 && speedRef.current > 0.03) {
+          const progress = Math.max(0, Math.min(1, 1 - remaining / (fullSpins * 0.35)));
+          const decay = 0.989 - progress * 0.016;
+          speedRef.current = Math.max(speedRef.current * decay, 0.03);
+
+          if (speedRef.current < 1.0 && p !== "suspense") {
+            phaseRef.current = "suspense";
+            setPhase("suspense");
+          }
+
+          suspensePulseRef.current += 0.06 * suspenseDirRef.current;
+          if (suspensePulseRef.current >= 1) suspenseDirRef.current = -1;
+          if (suspensePulseRef.current <= 0) suspenseDirRef.current = 1;
         } else {
-          rotationRef.current = targetRotationRef.current;
+          rotRef.current = targetRotRef.current;
           speedRef.current = 0;
-          phaseRef.current = "result";
-          drawWheel(canvas, rotationRef.current % 360, "result", 0);
-          handleResultReveal();
+          const canvas = canvasRef.current;
+          if (canvas) drawWheel(canvas, rotRef.current % 360, 0, 0);
+          if (msgIntervalRef.current) clearInterval(msgIntervalRef.current);
+          triggerReveal(trueResultRef.current);
           return;
         }
       }
 
-      drawWheel(canvas, rotationRef.current % 360, p, speedRef.current);
-      animFrameRef.current = requestAnimationFrame(loop);
+      rotRef.current += speedRef.current;
+      const canvas = canvasRef.current;
+      if (canvas) {
+        drawWheel(
+          canvas,
+          rotRef.current % 360,
+          speedRef.current,
+          p === "suspense" ? suspensePulseRef.current : 0
+        );
+      }
+      rafRef.current = requestAnimationFrame(loop);
     };
 
-    animFrameRef.current = requestAnimationFrame(loop);
-  };
+    rafRef.current = requestAnimationFrame(loop);
+  }, [triggerReveal]);
 
-  const reset = () => {
+  const reset = useCallback(() => {
+    cancelAnimationFrame(rafRef.current);
+    if (msgIntervalRef.current) clearInterval(msgIntervalRef.current);
     setShowResult(false);
     setResult(null);
-    setPhase("idle");
-    phaseRef.current = "idle";
     setParticles([]);
+    setTensionLevel(0);
+    setSuspenseMsg("");
+    setShaking(false);
+    phaseRef.current = "idle";
+    setPhase("idle");
     speedRef.current = 0;
+    suspensePulseRef.current = 0;
+  }, []);
 
-    const canvas = canvasRef.current;
-    if (canvas) drawWheel(canvas, rotationRef.current % 360, "idle", 0);
-  };
-
-  const isSpinning = phase === "spinning" || phase === "slowdown";
+  const isActive = phase !== "idle" && phase !== "result";
+  const isSuspense = phase === "suspense";
+  const isSlowing = phase === "slowdown" || phase === "suspense";
 
   return (
-    <div className={`relative w-full h-screen flex flex-col items-center justify-center overflow-hidden bg-black ${shaking ? "screen-shake" : ""}`}>
-      {/* Starfield */}
+    <div className={`relative w-screen h-screen flex flex-col items-center justify-center overflow-hidden bg-black ${shaking ? "screen-shake" : ""}`}>
+
+      {/* Stars */}
       <div className="stars">
         {stars.map((s) => (
-          <div
-            key={s.id}
-            className="star"
-            style={{
-              left: `${s.x}%`,
-              top: `${s.y}%`,
-              width: s.size,
-              height: s.size,
-              "--duration": `${s.duration}s`,
-              "--min-opacity": s.minOpacity,
-            } as React.CSSProperties}
-          />
+          <div key={s.id} className="star" style={{
+            left: `${s.x}%`, top: `${s.y}%`,
+            width: s.size, height: s.size,
+            "--duration": `${s.duration}s`,
+            "--min-opacity": s.minOpacity,
+          } as React.CSSProperties} />
         ))}
       </div>
 
-      {/* Atmosphere layers */}
-      <div className="fog" />
-      <div className="vignette" />
+      {/* Atmosphere */}
+      <div className="fog" style={{ opacity: 0.4 + tensionLevel * 0.18 }} />
+      <div className="vignette" style={{ opacity: 0.5 + tensionLevel * 0.15 }} />
       <div className="scanlines" />
 
-      {/* Lightning flash */}
-      {lightning && <div className="lightning" />}
+      {/* Suspense bg pulse */}
+      {isSuspense && (
+        <div className="fixed inset-0 pointer-events-none" style={{
+          zIndex: 2,
+          background: "radial-gradient(ellipse 55% 55% at 50% 50%, rgba(139,0,0,0.1) 0%, transparent 70%)",
+          animation: "tensionPulse 0.38s ease-in-out infinite alternate",
+        }} />
+      )}
+
+      {/* Lightning */}
+      {lightningOn && <div className="lightning" />}
 
       {/* Particles */}
       {particles.map((p) => (
-        <div
-          key={p.id}
-          className="particle"
-          style={{
-            left: p.x,
-            top: p.y,
-            width: p.size,
-            height: p.size,
-            background: p.color,
-            boxShadow: `0 0 ${p.size * 2}px ${p.color}`,
-            "--tx": `${p.tx}px`,
-            "--ty": `${p.ty}px`,
-            "--duration": `${p.duration}s`,
-          } as React.CSSProperties}
-        />
+        <div key={p.id} className="particle" style={{
+          left: p.x, top: p.y, width: p.size, height: p.size,
+          background: p.color,
+          boxShadow: `0 0 ${p.size * 2}px ${p.color}, 0 0 ${p.size * 4}px ${p.color}66`,
+          "--tx": `${p.tx}px`, "--ty": `${p.ty}px`, "--duration": `${p.duration}s`,
+        } as React.CSSProperties} />
       ))}
 
-      {/* Main content */}
-      <div className="relative z-10 flex flex-col items-center gap-6 select-none">
+      {/* ── Centred content column ── */}
+      <div className="relative z-10 flex flex-col items-center justify-center gap-4 w-full select-none"
+        style={{ maxWidth: canvasSize + 80 }}>
+
         {/* Title */}
-        <div className="flex flex-col items-center gap-1 mb-2">
-          <h1 className="title-main">КОЛЕСО РОКА</h1>
+        <div className="flex flex-col items-center gap-1 text-center w-full">
+          <h1 className="title-main" style={{
+            textShadow: tensionLevel >= 2
+              ? `0 0 ${20 + tensionLevel * 14}px rgba(201,168,76,0.9), 0 0 60px rgba(255,69,0,${tensionLevel * 0.28})`
+              : undefined,
+          }}>КОЛЕСО РОКА</h1>
           <p className="subtitle">вращай — и судьба решит за тебя</p>
           <div className="ornament mt-1">⸻ ✦ ⸻</div>
         </div>
 
         {/* Wheel */}
-        <div className="wheel-container" style={{ width: canvasSize + 60, height: canvasSize + 60 }}>
-          {/* Tension ring */}
-          <div className={`tension-ring ${isSpinning ? "active" : ""}`} style={{ width: canvasSize + 16, height: canvasSize + 16, left: 22, top: 22 }} />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}>
+          <div className="wheel-container"
+            style={{ width: canvasSize + 60, height: canvasSize + 60, flexShrink: 0 }}>
 
-          {/* Glow */}
-          <div className={`wheel-glow ${isSpinning ? "wheel-spinning" : ""}`} style={{ width: canvasSize, height: canvasSize, left: 30, top: 30 }} />
+            <div className={`tension-ring ${isActive ? "active" : ""}`}
+              style={{
+                width: canvasSize + 16, height: canvasSize + 16, left: 22, top: 22,
+                ...(isSuspense ? {
+                  boxShadow: `0 0 ${40 + tensionLevel * 18}px rgba(255,69,0,${0.55 + tensionLevel * 0.1}), 0 0 90px rgba(200,0,0,0.25)`,
+                } : {}),
+              }} />
 
-          {/* Pointer */}
-          <div className="wheel-pointer" style={{ top: 6 }} />
+            <div className={`wheel-glow ${isActive ? "wheel-spinning" : ""}`}
+              style={{ width: canvasSize, height: canvasSize, left: 30, top: 30 }} />
 
-          {/* Canvas */}
-          <canvas
-            ref={canvasRef}
-            width={canvasSize}
-            height={canvasSize}
-            style={{ display: "block", margin: "30px auto 0" }}
-          />
+            <div className="wheel-pointer" style={{ top: 6 }} />
+
+            <canvas ref={canvasRef} width={canvasSize} height={canvasSize}
+              style={{ display: "block", margin: "30px auto 0" }} />
+          </div>
         </div>
 
-        {/* Button / Result */}
-        {phase !== "result" ? (
-          <div className="flex flex-col items-center gap-3 mt-2">
-            <button
-              className="spin-btn"
-              onClick={spin}
-              disabled={isSpinning}
-            >
-              {isSpinning ? (phase === "slowdown" ? "⚡ РЕШАЕТСЯ..." : "⚡ КРУТИТСЯ...") : "✦ ВРАЩАТЬ КОЛЕСО ✦"}
-            </button>
-            {isSpinning && (
-              <p className="subtitle" style={{ color: "rgba(255,69,0,0.8)", animation: "fogPulse 0.4s ease-in-out infinite alternate" }}>
-                СУДЬБА ПЛЕТЁТ НИТ...
+        {/* Suspense message slot */}
+        <div style={{ height: 26, display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}>
+          {suspenseMsg && isSuspense && (
+            <p style={{
+              fontFamily: "'Cinzel', serif",
+              fontSize: "0.75rem",
+              letterSpacing: "0.38em",
+              textTransform: "uppercase",
+              color: `rgba(255,${Math.max(0, 80 - tensionLevel * 25)},0,0.95)`,
+              animation: "fogPulse 0.3s ease-in-out infinite alternate",
+              textShadow: "0 0 12px rgba(255,40,0,0.8)",
+              textAlign: "center",
+            }}>{suspenseMsg}</p>
+          )}
+        </div>
+
+        {/* CTA button */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+          {phase === "idle" && (
+            <button className="spin-btn" onClick={spin}>✦ ВРАЩАТЬ КОЛЕСО ✦</button>
+          )}
+          {(phase === "buildup" || phase === "spinning") && (
+            <>
+              <button className="spin-btn" disabled>⚡ КРУТИТСЯ...</button>
+              <p style={{ fontFamily: "'Cinzel',serif", fontSize: "0.7rem", letterSpacing: "0.38em",
+                color: "rgba(201,168,76,0.55)", textTransform: "uppercase" }}>
+                СУДЬБА ПЛЕТЁТ НИТ РОКА
               </p>
-            )}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-4 mt-2">
-            <button
-              className="spin-btn"
-              onClick={reset}
-              style={{ fontSize: "0.85rem", padding: "12px 32px" }}
-            >
+            </>
+          )}
+          {isSlowing && (
+            <button className="spin-btn" disabled style={{
+              background: tensionLevel >= 2
+                ? "linear-gradient(135deg,#3a0000 0%,#8b0000 40%,#cc2200 60%,#8b0000 80%,#3a0000 100%)"
+                : undefined,
+              borderColor: tensionLevel >= 2 ? "#cc0000" : undefined,
+              color: tensionLevel >= 2 ? "#ff5555" : undefined,
+            }}>
+              {tensionLevel >= 3 ? "⚡ РЕШАЕТСЯ..." : "🔥 ЗАМЕДЛЯЕТСЯ..."}
+            </button>
+          )}
+          {phase === "result" && (
+            <button className="spin-btn" onClick={reset}
+              style={{ fontSize: "0.85rem", padding: "12px 36px" }}>
               ↺ СПРОСИТЬ СНОВА
             </button>
-          </div>
-        )}
+          )}
+        </div>
+
       </div>
 
       {/* Result overlay */}
       {showResult && result !== null && (
-        <div className="result-overlay">
-          <div className={`result-text ${result ? "result-yes" : "result-no"}`}>
-            {result ? "ДА" : "НЕТ"}
+        <div className="result-overlay" onClick={reset} style={{ cursor: "pointer" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+            <div className={`result-text ${result ? "result-yes" : "result-no"}`}>
+              {result ? "ДА" : "НЕТ"}
+            </div>
+            <p style={{
+              fontFamily: "'Cinzel',serif", fontSize: "0.75rem", letterSpacing: "0.42em",
+              color: "rgba(232,220,200,0.45)", textTransform: "uppercase",
+              animation: "fogPulse 2s ease-in-out infinite alternate",
+            }}>нажми, чтобы спросить снова</p>
           </div>
         </div>
       )}
