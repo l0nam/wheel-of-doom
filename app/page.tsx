@@ -1,5 +1,5 @@
-import WheelOfDoom from "@/components/WheelOfDoom";
+import ScalesOfFate from "@/components/Wheelofdoom";
 
 export default function Home() {
-  return <WheelOfDoom />;
+  return <ScalesOfFate />;
 }
